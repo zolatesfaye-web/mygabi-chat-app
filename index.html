@@ -1,1 +1,48 @@
+<!DOCTYPE html>
+<html lang="am">
+<head>
+    <meta charset="UTF-8">
+    <title>ጋቢ</title>
+    <style>
+        body { font-family: sans-serif; background-color: #e6ebe0; display: flex; justify-content: center; height: 100vh; margin: 0; }
+        .chat-container { width: 400px; background: white; display: flex; flex-direction: column; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin: 20px; overflow: hidden; }
+        .header { background: #2481cc; color: white; padding: 15px; text-align: center; font-weight: bold; }
+        #messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .message { padding: 8px 12px; border-radius: 15px; max-width: 80%; font-size: 14px; }
+        .sent { align-self: flex-end; background: #effdde; }
+        .input-area { display: flex; padding: 10px; border-top: 1px solid #ddd; }
+        input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; outline: none; }
+        button { background: #2481cc; color: white; border: none; padding: 10px 15px; margin-left: 5px; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
 
+<div class="chat-container">
+    <div class="header">ጋቢ</div>
+    <div id="messages">
+        <div class="message" style="background: #f1f1f1;">ሰላም! እንዴት ነህ?</div>
+    </div>
+    <div class="input-area">
+        <input type="text" id="msgInput" placeholder="መልእክት ይፃፉ...">
+        <button onclick="sendMessage()">ላክ</button>
+    </div>
+</div>
+
+<script>
+    function sendMessage() {
+        let input = document.getElementById("msgInput");
+        let msgDiv = document.getElementById("messages");
+        
+        if (input.value.trim() !== "") {
+            let newMsg = document.createElement("div");
+            newMsg.classList.add("message", "sent");
+            newMsg.innerText = input.value;
+            msgDiv.appendChild(newMsg);
+            input.value = ""; // ቦታውን ባዶ ማድረግ
+            msgDiv.scrollTop = msgDiv.scrollHeight; // ወደ ታች ዝቅ እንዲል
+        }
+    }
+</script>
+
+</body>
+</html>
