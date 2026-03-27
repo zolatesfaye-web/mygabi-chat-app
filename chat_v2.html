@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="am">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MyGabi Pro Chat</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: #e5ddd5; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* Header */
+        header { background: #075e54; color: white; padding: 10px; z-index: 10; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .top-bar { display: flex; align-items: center; justify-content: space-between; padding: 5px 10px; }
+        .tabs { display: flex; margin-top: 10px; }
+        .tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; color: rgba(255,255,255,0.7); font-weight: bold; font-size: 14px; text-transform: uppercase; }
+        .tab.active { color: white; border-bottom: 3px solid white; }
+
+        /* Content Areas */
+        #main-container { flex: 1; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+        #inbox-list { position: absolute; width: 100%; height: 100%; background: white; z-index: 5; display: none; overflow-y: auto; }
+        #chat-view { flex: 1; display: flex; flex-direction: column; background: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
+
+        /* Inbox */
+        .contact-item { padding: 15px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; cursor: pointer; }
+        .avatar { width: 45px; height: 45px; background: #128c7e; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 15px; font-weight: bold; }
+
+        /* Chat Messages */
+        #chat-box { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .msg { max-width: 80%; padding: 8px 12px; border-radius: 8px; font-size: 15px; position: relative; box-shadow: 0 1px 1px rgba(0,0,0,0.1); }
+        .sent { align-self: flex-end; background-color: #dcf8c6; }
+        .received { align-self: flex-start; background-color: white; }
+        .sender-name { display: block; font-size: 11px; font-weight: bold; color: #075e54; margin-bottom: 3px; }
+        .msg img { width: 100%; border-radius: 5px; margin-top: 5px; max-height: 300px; object-fit: cover; }
+        audio { width: 100%; max-width: 220px; height: 35px; margin-top: 5px; }
+
+        /* Input Area */
+        .input-area { background: #f0f0f0; padding: 10px; display: flex; align-items: center; gap: 8px; }
+        .input-box { flex: 1; background: white; border-radius: 25px; display: flex; align-items: center; padding: 2px 12px; }
+        input[type="text"] { flex: 1; border: none; padding: 10px; outline: none; font-size: 16px; }
+        .icon-btn { font-size: 20px; cursor: pointer; color: #51585c; padding: 5px; }
+        .send-btn { background: #075e54; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        
+        #recording-indicator { position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%); background: rgba(255,0,0,0.8); color: white; padding: 5px 15px; border-radius: 20px; font-size: 12px; display: none; z-index: 100; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="top-bar">
+        <span id="back-btn" onclick="openMode('group')" style="display:none; font-size:20px; cursor:pointer;">⬅</span>
+        <span id="header-title" style="font-size:18px;">MyGabi Chat</span>
+        <span></span>
+    </div>
+    <div class="tabs" id="tabs-nav">
+        <div class="tab active" onclick="openMode('group')">ግሩፕ</div>
+        <div class="tab" onclick="openMode('private')">ፕራይቬት</div>
+    </div>
+</header>
+
+<div id="main-container">
+    <div id="recording-indicator">🔴 በመቅዳት ላይ...</div>
+
+    <div id="inbox-list">
+        <div style="padding: 15px;">
+            <button onclick="startNewChat()" style="width:100%; padding:12px; background:#128c7e; color:white; border:none; border-radius:10px; font-weight:bold;">+ አዲስ ቻት ጀምር</button>
+        </div>
+        <div id="contacts-display"></div>
+    </div>
+
+    <div id="chat-view">
+        <div id="chat-box"></div>
+        <div class="input-area">
+            <div class="input-box">
+                <span class="icon-btn" onclick="document.getElementById('fileInput').click()">📷</span>
+                <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="uploadFile(this.files[0], 'image')">
+                <input type="text" id="messageInput" placeholder="መልእክት ይጻፉ...">
+                <span class="icon-btn" id="voiceBtn" onmousedown="startRecording()" onmouseup="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()">🎙️</span>
+            </div>
+            <button class="send-btn" onclick="sendMessage()">➤</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 1. FIREBASE CONFIG (ያንተን መረጃ እዚህ ተካ) ---
+    const firebaseConfig = {
+        apiKey: "AIzaSy...", 
+        authDomain: "mygabi-chat.firebaseapp.com",
+        projectId: "mygabi-chat",
+        storageBucket: "mygabi-chat.firebasestorage.app",
+        appId: "1:688929290298:web:..."
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+
+    let myUsername = localStorage.getItem('chat_username') || prompt("Username ያስገቡ (ለምሳሌ @zola):") || "@guest";
+    if(!myUsername.startsWith('@')) myUsername = '@' + myUsername;
+    localStorage.setItem('chat_username', myUsername);
+
+    let currentRoom = "global_group";
+    let unsubscribe = null;
+    let mediaRecorder;
+    let audioChunks = [];
+
+    // --- 2. NAVIGATION ---
+    function openMode(mode) {
+        const tabs = document.querySelectorAll('.tab');
+        if (mode === 'group') {
+            tabs[0].classList.add('active'); tabs[1].classList.remove('active');
+            document.getElementById('inbox-list').style.display = 'none';
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('header-title').innerText = "የጋራ ግሩፕ";
+            currentRoom = "global_group";
+            loadMessages();
+        } else {
+            tabs[1].classList.add('active'); tabs[0].classList.remove('active');
+            document.getElementById('inbox-list').style.display = 'block';
+            document.getElementById('header-title').innerText = "ኢንቦክስ";
+            loadContacts();
+        }
+    }
+
+    function startNewChat() {
+        let p = prompt("የማንን Username ይፈልጋሉ? (@alex):");
+        if(p) {
+            if(!p.startsWith('@')) p = '@' + p;
+            openChat(p);
+        }
+    }
+
+    function openChat(partner) {
+        currentRoom = [myUsername, partner].sort().join("_");
+        document.getElementById('inbox-list').style.display = 'none';
+        document.getElementById('back-btn').style.display = 'inline';
+        document.getElementById('header-title').innerText = partner;
+        db.collection("users").doc(myUsername).collection("my_contacts").doc(partner).set({name: partner});
+        loadMessages();
+    }
+
+    function loadContacts() {
+        db.collection("users").doc(myUsername).collection("my_contacts").onSnapshot(snap => {
+            const list = document.getElementById('contacts-display');
+            list.innerHTML = "";
+            snap.forEach(doc => {
+                const name = doc.data().name;
+                const div = document.createElement('div');
+                div.className = "contact-item";
+                div.innerHTML = `<div class="avatar">${name[1].toUpperCase()}</div><div><b>${name}</b></div>`;
+                div.onclick = () => openChat(name);
+                list.appendChild(div);
+            });
+        });
+    }
+
+    // --- 3. CORE FUNCTIONS (SEND/UPLOAD) ---
+    async function uploadFile(file, type) {
+        if(!file) return;
+        try {
+            const ref = storage.ref(`${type}s/${Date.now()}_${myUsername}`);
+            await ref.put(file);
+            const url = await ref.getDownloadURL();
+            db.collection("all_chats").doc(currentRoom).collection("messages").add({
+                mediaUrl: url, type: type, user: myUsername, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        } catch (e) { alert("መላክ አልተቻለም፡ " + e.message); }
+    }
+
+    function sendMessage() {
+        const text = document.getElementById('messageInput').value;
+        if(text.trim()) {
+            db.collection("all_chats").doc(currentRoom).collection("messages").add({
+                text: text, type: 'text', user: myUsername, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            document.getElementById('messageInput').value = "";
+        }
+    }
+
+    function loadMessages() {
+        if(unsubscribe) unsubscribe();
+        const chatBox = document.getElementById('chat-box');
+        unsubscribe = db.collection("all_chats").doc(currentRoom).collection("messages").orderBy("createdAt")
+            .onSnapshot(snap => {
+                chatBox.innerHTML = "";
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const isMe = d.user === myUsername;
+                    const div = document.createElement('div');
+                    div.className = `msg ${isMe ? 'sent' : 'received'}`;
+                    let html = `<span class="sender-name">${d.user}</span>`;
+                    if(d.type === 'image') html += `<img src="${d.mediaUrl}" onclick="window.open('${d.mediaUrl}')">`;
+                    else if(d.type === 'audio') html += `<audio controls src="${d.mediaUrl}"></audio>`;
+                    else html += `<span>${d.text}</span>`;
+                    div.innerHTML = html;
+                    chatBox.appendChild(div);
+                });
+                chatBox.scrollTop = chatBox.scrollHeight;
+            });
+    }
+
+    // --- 4. VOICE RECORDING ---
+    async function startRecording() {
+        audioChunks = [];
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.start();
+            document.getElementById('recording-indicator').style.display = 'block';
+        } catch(e) { alert("ማይክሮፎን ፈቃድ አላገኘም"); }
+    }
+
+    function stopRecording() {
+        if(!mediaRecorder) return;
+        mediaRecorder.stop();
+        document.getElementById('recording-indicator').style.display = 'none';
+        mediaRecorder.onstop = async () => {
+            const blob = new Blob(audioChunks, { type: 'audio/webm' });
+            uploadFile(blob, 'audio');
+        };
+    }
+
+    // ENTER ቁልፍ ሲጫን ለመላክ
+    document.getElementById('messageInput').addEventListener("keypress", (e) => {
+        if (e.key === "Enter") sendMessage();
+    });
+
+    loadMessages(); // ግሩፑን መጀመሪያ እንዲጭን
+</script>
+</body>
+</html>
